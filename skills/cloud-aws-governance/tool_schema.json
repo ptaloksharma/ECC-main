@@ -1,0 +1,66 @@
+{
+  "name": "aws_governance_bridge",
+  "description": "Read-only AWS infrastructure inspection tool, governed and audited via the ECC GovernanceContext. Every invocation must be tied to a correlation_id so cloud lookups remain traceable in telemetry.",
+  "module": "skills/cloud-aws-governance/aws_utilities.py",
+  "class": "AWSGovernanceBridge",
+  "version": "1.0.0",
+  "governance": {
+    "requires_correlation_id": true,
+    "correlation_id_source": "core.orchestrator_factory.GovernanceContext.correlation_id",
+    "audit_log_prefix": "[ECC AWS GOVERNANCE]",
+    "notes": "Agents must obtain correlation_id from the active GovernanceContext and pass it explicitly. Do not fabricate or omit correlation_id when invoking this tool."
+  },
+  "methods": [
+    {
+      "name": "inspect_infrastructure",
+      "description": "Performs a read-only lookup against AWS for the given resource_type and returns a normalized result. Logs an audit line before execution and on completion or failure.",
+      "read_only": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "resource_type": {
+            "type": "string",
+            "description": "The category of AWS resource to inspect.",
+            "enum": [
+              "ec2_instances",
+              "s3_buckets",
+              "iam_roles",
+              "rds_instances",
+              "lambda_functions"
+            ]
+          }
+        },
+        "required": ["resource_type"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["success", "error"] },
+          "correlation_id": { "type": "string" },
+          "resource_type": { "type": "string" },
+          "data": { "type": "object", "description": "Present when status is success." },
+          "error": { "type": "string", "description": "Present when status is error." }
+        }
+      }
+    }
+  ],
+  "initialization": {
+    "constructor_parameters": {
+      "correlation_id": {
+        "type": "string",
+        "required": true,
+        "description": "Must be sourced from the active GovernanceContext.correlation_id. The bridge raises ValueError if omitted or empty."
+      },
+      "session": {
+        "type": "object",
+        "required": false,
+        "description": "Optional pre-configured boto3.Session; defaults to boto3.Session() using the ambient AWS credential chain."
+      }
+    }
+  },
+  "security": {
+    "permission_model": "least_privilege",
+    "credential_handling": "Uses the ambient boto3/AWS credential chain (environment, shared config, or instance/task role). This tool never accepts, stores, or logs raw AWS credentials.",
+    "mutating_actions": "None. All mapped operations are read-only describe/list calls."
+  }
+}
